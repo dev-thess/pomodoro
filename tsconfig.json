@@ -6,7 +6,13 @@
     "moduleResolution": "node",
     "strict": true,
     "baseUrl": ".",
-    "paths": {}
+    "paths": {},
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules"]
