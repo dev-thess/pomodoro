@@ -1,1 +1,13 @@
-{ "compilerOptions": { "target": "esnext", "module": "esnext", "jsx": "preserve", "moduleResolution": "bundler", "strict": true, "baseUrl": ".", "paths": {} }, "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"], "exclude": ["node_modules"] }
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "jsx": "preserve",
+    "moduleResolution": "node",
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {}
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}
