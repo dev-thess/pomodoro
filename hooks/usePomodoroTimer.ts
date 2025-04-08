@@ -1,3 +1,5 @@
+"use client";
+
 // Custom hook to manage pomodoro timer logic
 
 import { useEffect, useRef, useCallback } from "react";
