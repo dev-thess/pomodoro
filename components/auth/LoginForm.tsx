@@ -44,10 +44,18 @@ export default function LoginForm() {
     checkLocalData();
   }, []);
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
     setIsLoading(true);
+
     try {
-      await signIn("google", { callbackUrl });
+      // Use signIn with specific options to ensure PKCE flow is maintained
+      await signIn("google", {
+        callbackUrl,
+        redirect: true,
+      });
+
+      // Note: No need to manually redirect - NextAuth handles this
     } catch (error) {
       console.error("Login failed:", error);
       setIsLoading(false);
@@ -60,6 +68,8 @@ export default function LoginForm() {
         <div className='p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg'>
           {error === "CredentialsSignin"
             ? "Invalid credentials"
+            : error === "OAuthSignin" || error === "OAuthCallback"
+            ? "There was a problem with the Google sign-in. Please try again."
             : "An error occurred during sign in"}
         </div>
       )}

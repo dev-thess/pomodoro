@@ -12,9 +12,14 @@ export function GuestBanner() {
     return null;
   }
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
     try {
-      await signIn("google", { callbackUrl: "/" });
+      // Use signIn with specific options to ensure PKCE flow is maintained
+      await signIn("google", {
+        callbackUrl: "/",
+        redirect: true,
+      });
     } catch (error) {
       console.error("Login failed:", error);
     }
