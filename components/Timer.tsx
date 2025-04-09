@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePomodoroTimer } from "../hooks/usePomodoroTimer";
 import { TimerMode } from "../store/useTimerStore";
+import SessionNote from "./SessionNote";
 
 const Timer: React.FC = () => {
   const {
@@ -22,8 +23,8 @@ const Timer: React.FC = () => {
   ];
 
   return (
-    <div className='flex flex-col items-center justify-center min-h-screen bg-gray-100'>
-      <div className='w-full max-w-md p-6 bg-white rounded-xl shadow-md'>
+    <div className='flex flex-col items-center justify-center min-h-screen bg-gray-100 py-8'>
+      <div className='w-full max-w-md p-6 bg-white rounded-xl shadow-md mb-6'>
         <h1 className='text-2xl font-bold text-center text-gray-800 mb-6'>
           Pomodoro Timer
         </h1>
@@ -79,6 +80,9 @@ const Timer: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Session Notes */}
+      {mode === "pomodoro" && <SessionNote className='w-full max-w-md' />}
     </div>
   );
 };
