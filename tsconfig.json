@@ -6,7 +6,9 @@
     "moduleResolution": "node",
     "strict": true,
     "baseUrl": ".",
-    "paths": {},
+    "paths": {
+      "@/*": ["./*"]
+    },
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "lib": ["dom", "dom.iterable", "esnext"],
