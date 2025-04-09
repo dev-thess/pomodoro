@@ -2,7 +2,8 @@
 
 import { signIn } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useGuestSession } from "@/hooks/useGuestSession";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -10,14 +11,26 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
   const error = searchParams.get("error");
+  const [guestDataExists, setGuestDataExists] = useState(false);
+  const { getAllGuestNotes, getAllGuestStreaks } = useGuestSession();
+
+  // Check if the user has any guest data to sync
+  useEffect(() => {
+    // Check for any guest data that should be synced on login
+    const guestNotes = getAllGuestNotes();
+    const guestStreaks = getAllGuestStreaks();
+
+    setGuestDataExists(guestNotes.length > 0 || guestStreaks.length > 0);
+  }, [getAllGuestNotes, getAllGuestStreaks]);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
       await signIn("google", { callbackUrl });
+      // Note: The actual data syncing will happen in the NavBar or root layout
+      // after the user is redirected and authenticated
     } catch (error) {
       console.error("Login failed:", error);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -29,6 +42,12 @@ export default function LoginForm() {
           {error === "CredentialsSignin"
             ? "Invalid credentials"
             : "An error occurred during sign in"}
+        </div>
+      )}
+
+      {guestDataExists && (
+        <div className='p-4 mb-4 text-sm text-green-700 bg-green-100 rounded-lg'>
+          We found your existing timer data. Sign in to sync it to your account!
         </div>
       )}
 
