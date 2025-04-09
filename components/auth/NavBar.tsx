@@ -1,41 +1,17 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 import { GuestBanner } from "./GuestBanner";
-import { useGuestSession } from "@/hooks/useGuestSession";
+import { useSessionUser } from "@/hooks/useSessionUser";
 
 export default function NavBar() {
-  const { data: session, status } = useSession();
   const router = useRouter();
-  const isAuthenticated = status === "authenticated";
-  const { isGuest, syncGuestData, isSyncing } = useGuestSession();
-  const [syncAttempted, setSyncAttempted] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<
-    "idle" | "syncing" | "success" | "error"
-  >("idle");
+  const { mode, userName, userImage, syncStatus } = useSessionUser();
 
-  // Handle syncing guest data after login
-  useEffect(() => {
-    const handleDataSync = async () => {
-      if (isAuthenticated && !syncAttempted && !isSyncing) {
-        setSyncAttempted(true);
-        setSyncStatus("syncing");
-        try {
-          const syncResult = await syncGuestData();
-          setSyncStatus(syncResult ? "success" : "error");
-        } catch (error) {
-          console.error("Error syncing data:", error);
-          setSyncStatus("error");
-        }
-      }
-    };
-
-    handleDataSync();
-  }, [isAuthenticated, syncAttempted, syncGuestData, isSyncing]);
+  const isAuthenticated = mode === "authenticated";
 
   const handleLoginClick = () => {
     router.push("/login");
@@ -69,18 +45,18 @@ export default function NavBar() {
               {isAuthenticated ? (
                 <div className='flex items-center space-x-4'>
                   <div className='flex items-center space-x-2'>
-                    {session?.user?.image && (
+                    {userImage && (
                       <div className='w-8 h-8 rounded-full overflow-hidden'>
                         <Image
-                          src={session.user.image}
-                          alt={session.user.name || "User"}
+                          src={userImage}
+                          alt={userName || "User"}
                           width={32}
                           height={32}
                         />
                       </div>
                     )}
                     <span className='text-sm font-medium text-gray-700 hidden sm:inline'>
-                      {session?.user?.name}
+                      {userName}
                     </span>
                   </div>
                   <button
@@ -102,7 +78,7 @@ export default function NavBar() {
           </div>
         </div>
       </nav>
-      {isGuest && <GuestBanner />}
+      {mode === "guest" && <GuestBanner />}
     </>
   );
 }

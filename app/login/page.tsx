@@ -1,8 +1,17 @@
+"use client";
+
 import { Suspense } from "react";
 import LoginForm from "@/components/auth/LoginForm";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
+  const router = useRouter();
+
+  const handleContinueAsGuest = () => {
+    router.push("/");
+  };
+
   return (
     <div className='flex items-center justify-center min-h-screen bg-gray-100'>
       <div className='w-full max-w-md p-8 space-y-8 bg-white rounded-xl shadow-md'>
@@ -29,12 +38,12 @@ export default function LoginPage() {
           </p>
           <div className='text-sm text-gray-500'>
             You can use Pomodoro as a guest and your data will be saved locally.
-            <Link
-              href='/'
+            <button
+              onClick={handleContinueAsGuest}
               className='block mt-2 text-blue-600 hover:text-blue-800 font-medium'
             >
               Continue as Guest →
-            </Link>
+            </button>
           </div>
         </div>
       </div>

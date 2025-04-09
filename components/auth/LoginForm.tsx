@@ -3,7 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { useGuestSession } from "@/hooks/useGuestSession";
+import { useSessionUser } from "@/hooks/useSessionUser";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -12,23 +12,42 @@ export default function LoginForm() {
   const callbackUrl = searchParams.get("callbackUrl") || "/";
   const error = searchParams.get("error");
   const [guestDataExists, setGuestDataExists] = useState(false);
-  const { getAllGuestNotes, getAllGuestStreaks } = useGuestSession();
 
-  // Check if the user has any guest data to sync
+  // Instead of direct dependency on useGuestSession, use our unified hook
+  const { mode } = useSessionUser();
+
+  // Check if the user is already authenticated
   useEffect(() => {
-    // Check for any guest data that should be synced on login
-    const guestNotes = getAllGuestNotes();
-    const guestStreaks = getAllGuestStreaks();
+    if (mode === "authenticated") {
+      router.push("/");
+    }
+  }, [mode, router]);
 
-    setGuestDataExists(guestNotes.length > 0 || guestStreaks.length > 0);
-  }, [getAllGuestNotes, getAllGuestStreaks]);
+  // Check for local data that would be synced on login
+  useEffect(() => {
+    const checkLocalData = () => {
+      try {
+        // Look for any notes or streaks in localStorage
+        const guestData = localStorage.getItem("pomodoro-guest-data");
+        if (guestData) {
+          const parsedData = JSON.parse(guestData);
+          const hasNotes = parsedData.notes && parsedData.notes.length > 0;
+          const hasStreaks =
+            parsedData.streaks && parsedData.streaks.length > 0;
+          setGuestDataExists(hasNotes || hasStreaks);
+        }
+      } catch (error) {
+        console.error("Error checking local data:", error);
+      }
+    };
+
+    checkLocalData();
+  }, []);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
       await signIn("google", { callbackUrl });
-      // Note: The actual data syncing will happen in the NavBar or root layout
-      // after the user is redirected and authenticated
     } catch (error) {
       console.error("Login failed:", error);
       setIsLoading(false);

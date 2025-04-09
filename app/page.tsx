@@ -1,24 +1,13 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import Timer from "../components/Timer";
 import NavBar from "../components/auth/NavBar";
+import { useSessionUser } from "@/hooks/useSessionUser";
 
 export default function Home() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const isLoading = status === "loading";
-  const isUnauthenticated = status === "unauthenticated";
+  const { isLoading } = useSessionUser();
 
-  useEffect(() => {
-    if (!isLoading && isUnauthenticated) {
-      router.push("/login");
-    }
-  }, [isLoading, isUnauthenticated, router]);
-
-  // Show loading state or redirect to login if not authenticated
+  // Show loading state while checking auth status
   if (isLoading) {
     return (
       <div className='flex flex-col min-h-screen'>
@@ -30,11 +19,7 @@ export default function Home() {
     );
   }
 
-  if (isUnauthenticated) {
-    return null; // Will redirect in the useEffect
-  }
-
-  // Show the timer if authenticated
+  // Show the timer for both authenticated and guest users
   return (
     <div className='flex flex-col min-h-screen'>
       <NavBar />

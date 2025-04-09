@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
-import { useGuestSession } from "@/hooks/useGuestSession";
+import { useSessionUser } from "@/hooks/useSessionUser";
 
 export function GuestBanner() {
-  const { isGuest, isSyncing } = useGuestSession();
+  const { mode, isSyncing } = useSessionUser();
   const [isVisible, setIsVisible] = useState(true);
 
-  if (!isGuest || !isVisible) {
+  if (mode !== "guest" || !isVisible) {
     return null;
   }
 
@@ -22,14 +22,32 @@ export function GuestBanner() {
 
   const handleDismiss = () => {
     setIsVisible(false);
+    // Remember this choice in localStorage so banner doesn't show again today
+    try {
+      localStorage.setItem(
+        "banner-dismissed",
+        new Date().toISOString().split("T")[0]
+      );
+    } catch (error) {
+      console.error("Failed to save banner state:", error);
+    }
   };
 
+  // Check if already dismissed today
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const lastDismissed = localStorage.getItem("banner-dismissed");
+
+    if (lastDismissed === today) {
+      setIsVisible(false);
+    }
+  }, []);
+
   return (
-    <div className='w-full bg-blue-50 border-t border-b border-blue-100 px-4 py-3'>
+    <div className='w-full bg-blue-50 border-t border-b border-blue-100 px-4 py-2'>
       <div className='flex items-center justify-between max-w-7xl mx-auto'>
         <div className='flex-1 text-sm text-blue-700'>
-          You're using Pomodoro as a guest. Sign in to sync your notes and
-          progress across devices.
+          Sign in to sync your notes and progress across devices
         </div>
         <div className='flex items-center space-x-2 ml-4'>
           <button
@@ -37,7 +55,7 @@ export function GuestBanner() {
             disabled={isSyncing}
             className='text-xs font-medium px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-70'
           >
-            {isSyncing ? "Syncing..." : "Sign in with Google"}
+            {isSyncing ? "Syncing..." : "Sign in"}
           </button>
           <button
             onClick={handleDismiss}
