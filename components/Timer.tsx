@@ -1,11 +1,11 @@
 "use client";
 
-import * as React from "react";
+import React from "react";
 import { usePomodoroTimer } from "../hooks/usePomodoroTimer";
 import { TimerMode } from "../store/useTimerStore";
 import SessionNote from "./SessionNote";
 
-const Timer: React.FC = () => {
+export function Timer() {
   const {
     mode,
     formattedTime,
@@ -14,6 +14,8 @@ const Timer: React.FC = () => {
     handleStartPause,
     handleReset,
     handleModeChange,
+    isVisible,
+    timerAccuracy,
   } = usePomodoroTimer();
 
   const modeButtons: { label: string; value: TimerMode }[] = [
@@ -22,9 +24,44 @@ const Timer: React.FC = () => {
     { label: "Long Break", value: "longBreak" },
   ];
 
+  // Display completed pomodoros as tomato emojis
+  const renderCompletedPomodoros = () => {
+    return (
+      <div className='text-center text-gray-600'>
+        <p className='text-sm'>
+          Completed today:{" "}
+          <span className='font-semibold'>{completedPomodoros}</span>
+          {completedPomodoros > 0 && (
+            <span className='ml-2'>
+              {Array(Math.min(completedPomodoros, 8)).fill("🍅").join("")}
+            </span>
+          )}
+        </p>
+      </div>
+    );
+  };
+
+  // Display timer accuracy indicator (for debugging)
+  const renderTimerStatus = () => {
+    return (
+      <div className='text-xs opacity-50 absolute bottom-1 right-2'>
+        {!isVisible && (
+          <span title='App is in background' className='text-yellow-500 mr-2'>
+            ⚠️
+          </span>
+        )}
+        {timerAccuracy === "high"
+          ? "⚡"
+          : timerAccuracy === "medium"
+          ? "⚙️"
+          : "⏱️"}
+      </div>
+    );
+  };
+
   return (
     <div className='flex flex-col items-center justify-center min-h-screen bg-gray-100 py-8'>
-      <div className='w-full max-w-md p-6 bg-white rounded-xl shadow-md mb-6'>
+      <div className='w-full max-w-md p-6 bg-white rounded-xl shadow-md mb-6 relative'>
         <h1 className='text-2xl font-bold text-center text-gray-800 mb-6'>
           Pomodoro Timer
         </h1>
@@ -47,7 +84,15 @@ const Timer: React.FC = () => {
         </div>
 
         {/* Timer Display */}
-        <div className='text-7xl font-bold text-center my-8 font-mono'>
+        <div
+          className={`text-7xl font-bold text-center my-8 font-mono ${
+            mode === "pomodoro"
+              ? "text-red-500"
+              : mode === "shortBreak"
+              ? "text-green-500"
+              : "text-blue-500"
+          }`}
+        >
           {formattedTime}
         </div>
 
@@ -55,7 +100,11 @@ const Timer: React.FC = () => {
         <div className='flex justify-center space-x-4 mb-6'>
           <button
             onClick={handleStartPause}
-            className='px-6 py-3 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors'
+            className={`px-6 py-3 font-medium rounded-lg transition-colors ${
+              isRunning
+                ? "bg-gray-500 hover:bg-gray-600 text-white"
+                : "bg-red-500 hover:bg-red-600 text-white"
+            }`}
           >
             {isRunning ? "Pause" : "Start"}
           </button>
@@ -68,23 +117,14 @@ const Timer: React.FC = () => {
         </div>
 
         {/* Pomodoro Count */}
-        <div className='text-center text-gray-600'>
-          <p className='text-sm'>
-            Completed today:{" "}
-            <span className='font-semibold'>{completedPomodoros}</span>
-            {completedPomodoros > 0 && (
-              <span className='ml-2'>
-                {Array(Math.min(completedPomodoros, 8)).fill("🍅").join("")}
-              </span>
-            )}
-          </p>
-        </div>
+        {renderCompletedPomodoros()}
+
+        {/* Timer status indicator */}
+        {renderTimerStatus()}
       </div>
 
       {/* Session Notes */}
       {mode === "pomodoro" && <SessionNote className='w-full max-w-md' />}
     </div>
   );
-};
-
-export default Timer;
+}

@@ -1,8 +1,8 @@
 "use client";
 
-// Custom hook to manage pomodoro timer logic
+// Custom hook to manage pomodoro timer logic with background tab support
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import {
   useTimerStore,
   TimerMode,
@@ -15,6 +15,7 @@ export function usePomodoroTimer() {
     timeLeft,
     isRunning,
     completedPomodoros,
+    startTime,
     setTimeLeft,
     startTimer,
     pauseTimer,
@@ -23,31 +24,127 @@ export function usePomodoroTimer() {
     incrementCompletedPomodoros,
   } = useTimerStore();
 
+  // Use both setInterval and requestAnimationFrame for better cross-browser support
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const requestRef = useRef<number | null>(null);
+  const previousTimeRef = useRef<number | null>(null);
 
-  // Handle timer tick with useCallback to avoid recreating function on each render
-  const tick = useCallback(() => {
-    setTimeLeft(Math.max(0, timeLeft - 1));
-  }, [timeLeft, setTimeLeft]);
+  // Track visibility state for when app goes to background
+  const [isVisible, setIsVisible] = useState(true);
+  const lastVisibleTimeRef = useRef<number>(Date.now());
 
-  // Handle timer tick
+  // Handle visibility change events
   useEffect(() => {
-    if (isRunning) {
-      intervalRef.current = setInterval(tick, 1000);
+    const handleVisibilityChange = () => {
+      const nowVisible = !document.hidden;
+      const now = Date.now();
+
+      setIsVisible(nowVisible);
+
+      if (nowVisible && isRunning) {
+        // Coming back from hidden state - recalculate time based on elapsed time
+        const elapsedInBackground = (now - lastVisibleTimeRef.current) / 1000;
+        if (elapsedInBackground > 0.5) {
+          // Only adjust if significant time passed
+          // Calculate new time remaining
+          const newTimeLeft = Math.max(
+            0,
+            timeLeft - Math.floor(elapsedInBackground)
+          );
+          console.log(
+            `App was in background for ${elapsedInBackground.toFixed(
+              1
+            )}s, adjusting timer`
+          );
+          setTimeLeft(newTimeLeft);
+        }
+      }
+
+      lastVisibleTimeRef.current = now;
+    };
+
+    // Set initial visibility state
+    setIsVisible(!document.hidden);
+    lastVisibleTimeRef.current = Date.now();
+
+    // Add event listener for visibility changes
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Clean up
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isRunning, setTimeLeft, timeLeft]);
+
+  // Absolute time-based timer implementation
+  useEffect(() => {
+    if (!isRunning || !startTime) return;
+
+    // Store the expected end time in localStorage for recovery
+    const expectedEndTimestamp = startTime + timeLeft * 1000;
+    localStorage.setItem("pomodoroEndTime", expectedEndTimestamp.toString());
+    localStorage.setItem("pomodoroMode", mode);
+
+    const calculateTimeRemaining = () => {
+      const now = Date.now();
+      const elapsedMs = now - startTime;
+      const elapsedSeconds = Math.floor(elapsedMs / 1000);
+      const newTimeLeft = Math.max(0, getTimerDuration(mode) - elapsedSeconds);
+
+      if (newTimeLeft !== timeLeft) {
+        setTimeLeft(newTimeLeft);
+      }
+
+      return newTimeLeft;
+    };
+
+    // Use both setInterval (for background) and requestAnimationFrame (for foreground)
+    const updateTimer = () => {
+      const remaining = calculateTimeRemaining();
+
+      if (remaining <= 0) {
+        // Timer completed
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        if (requestRef.current) cancelAnimationFrame(requestRef.current);
+        return;
+      }
+
+      // Continue the animation loop if visible
+      if (isVisible) {
+        requestRef.current = requestAnimationFrame(updateTimer);
+      }
+    };
+
+    // Start both timing mechanisms for better cross-device support
+    intervalRef.current = setInterval(() => {
+      if (!isVisible) {
+        calculateTimeRemaining();
+      }
+    }, 1000);
+
+    if (isVisible) {
+      requestRef.current = requestAnimationFrame(updateTimer);
     }
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [isRunning, tick]);
+  }, [isRunning, startTime, mode, timeLeft, setTimeLeft, isVisible]);
 
   // Handle timer completion and mode switching
   useEffect(() => {
     if (timeLeft === 0 && isRunning) {
       pauseTimer();
+      // Play sound notification
+      try {
+        const audio = new Audio("/notification.mp3");
+        audio
+          .play()
+          .catch((e) => console.error("Error playing notification:", e));
+      } catch (e) {
+        console.error("Could not play notification sound", e);
+      }
 
       if (mode === "pomodoro") {
         incrementCompletedPomodoros();
@@ -62,6 +159,9 @@ export function usePomodoroTimer() {
         // After a break, go back to pomodoro
         setMode("pomodoro");
       }
+
+      // Clear the stored end time
+      localStorage.removeItem("pomodoroEndTime");
     }
   }, [
     timeLeft,
@@ -72,6 +172,39 @@ export function usePomodoroTimer() {
     incrementCompletedPomodoros,
     setMode,
   ]);
+
+  // Check for timer recovery on mount
+  useEffect(() => {
+    const storedEndTime = localStorage.getItem("pomodoroEndTime");
+    const storedMode = localStorage.getItem("pomodoroMode") as TimerMode | null;
+
+    if (storedEndTime && storedMode) {
+      const endTime = parseInt(storedEndTime, 10);
+      const now = Date.now();
+
+      // If the end time is in the future, recover the timer
+      if (endTime > now) {
+        const remainingMs = endTime - now;
+        const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+        // Only recover if more than 1 second remains
+        if (remainingSeconds > 1) {
+          console.log(`Recovering timer with ${remainingSeconds}s remaining`);
+          setMode(storedMode);
+          setTimeLeft(remainingSeconds);
+          startTimer();
+        } else {
+          // Clear storage if time has passed
+          localStorage.removeItem("pomodoroEndTime");
+          localStorage.removeItem("pomodoroMode");
+        }
+      } else {
+        // Clear storage if time has passed
+        localStorage.removeItem("pomodoroEndTime");
+        localStorage.removeItem("pomodoroMode");
+      }
+    }
+  }, [setMode, setTimeLeft, startTimer]);
 
   // Helper function to format time as mm:ss
   const formatTime = (seconds: number): string => {
@@ -84,11 +217,16 @@ export function usePomodoroTimer() {
 
   const handleModeChange = (newMode: TimerMode) => {
     setMode(newMode);
+    // Clear any stored timer
+    localStorage.removeItem("pomodoroEndTime");
+    localStorage.removeItem("pomodoroMode");
   };
 
   const handleStartPause = () => {
     if (isRunning) {
       pauseTimer();
+      // Remove stored end time when pausing
+      localStorage.removeItem("pomodoroEndTime");
     } else {
       startTimer();
     }
@@ -96,7 +234,22 @@ export function usePomodoroTimer() {
 
   const handleReset = () => {
     resetTimer();
+    // Clear any stored timer
+    localStorage.removeItem("pomodoroEndTime");
+    localStorage.removeItem("pomodoroMode");
   };
+
+  // Get estimated timer accuracy (for debugging)
+  const timerAccuracy = useRef<"high" | "medium" | "low">("high");
+  useEffect(() => {
+    // Determine browser timer accuracy based on platform
+    const ua = navigator.userAgent;
+    if (/iPhone|iPad|iPod/.test(ua) || /Android/.test(ua)) {
+      timerAccuracy.current = isVisible ? "medium" : "low";
+    } else {
+      timerAccuracy.current = "high";
+    }
+  }, [isVisible]);
 
   return {
     mode,
@@ -107,6 +260,8 @@ export function usePomodoroTimer() {
     handleStartPause,
     handleReset,
     handleModeChange,
+    isVisible,
+    timerAccuracy: timerAccuracy.current,
   };
 }
 
