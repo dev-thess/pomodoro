@@ -5,7 +5,7 @@ import { usePomodoroTimer } from "../hooks/usePomodoroTimer";
 import { TimerMode } from "../store/useTimerStore";
 import SessionNote from "./SessionNote";
 
-export function Timer() {
+export default function Timer() {
   const {
     mode,
     formattedTime,
