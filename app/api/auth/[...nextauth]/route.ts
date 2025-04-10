@@ -4,8 +4,49 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { JWT } from "next-auth/jwt";
 import { Session, User } from "next-auth";
+import type { DefaultSession } from "next-auth";
 
-const authOptions = {
+// Determine the base URL for this environment
+const getBaseUrl = () => {
+  // First priority: Use NEXTAUTH_URL if explicitly set
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL;
+  }
+
+  // For production: Use VERCEL_URL for Vercel deployments or throw an error
+  if (process.env.NODE_ENV === "production") {
+    const vercelUrl = process.env.VERCEL_URL;
+
+    // For Vercel deployments
+    if (vercelUrl) {
+      return `https://${vercelUrl}`;
+    }
+
+    // If no production URL is set, log warning
+    console.warn(
+      "No NEXTAUTH_URL or VERCEL_URL set in production environment. " +
+        "OAuth redirects may not work properly."
+    );
+
+    // Return null to let NextAuth use its fallback, but log warning
+    return null;
+  }
+
+  // Development fallback
+  return "http://localhost:3000";
+};
+
+// Get the base URL
+const baseUrl = getBaseUrl();
+
+// Log environment info to help with debugging (no secrets)
+console.log(`NextAuth Environment: ${process.env.NODE_ENV}`);
+console.log(`Base URL resolved to: ${baseUrl || "Using NextAuth default"}`);
+console.log(`VERCEL_URL exists: ${!!process.env.VERCEL_URL}`);
+console.log(`NEXTAUTH_URL exists: ${!!process.env.NEXTAUTH_URL}`);
+console.log(`Google OAuth ClientID exists: ${!!process.env.GOOGLE_CLIENT_ID}`);
+
+export const authOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
@@ -42,8 +83,22 @@ const authOptions = {
       return token;
     },
     redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      else if (new URL(url).origin === baseUrl) return url;
+      // Log redirect attempts to help debug
+      console.log(`NextAuth Redirect - URL: ${url}, BaseURL: ${baseUrl}`);
+
+      // Allows relative callback URLs
+      if (url.startsWith("/")) {
+        const redirectUrl = `${baseUrl}${url}`;
+        console.log(`Redirecting to: ${redirectUrl}`);
+        return redirectUrl;
+      }
+      // Allows callback URLs on the same origin
+      else if (new URL(url).origin === baseUrl) {
+        console.log(`Redirecting to same origin: ${url}`);
+        return url;
+      }
+
+      console.log(`Fallback redirect to baseUrl: ${baseUrl}`);
       return baseUrl;
     },
   },
@@ -52,7 +107,7 @@ const authOptions = {
     error: "/login",
   },
   session: {
-    strategy: "jwt" as const,
+    strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   cookies: {
@@ -63,7 +118,7 @@ const authOptions = {
           : `next-auth.session-token`,
       options: {
         httpOnly: true,
-        sameSite: "lax" as const,
+        sameSite: "lax",
         path: "/",
         secure: process.env.NODE_ENV === "production",
       },
@@ -75,7 +130,7 @@ const authOptions = {
           : `next-auth.callback-url`,
       options: {
         httpOnly: true,
-        sameSite: "lax" as const,
+        sameSite: "lax",
         path: "/",
         secure: process.env.NODE_ENV === "production",
       },
@@ -87,7 +142,7 @@ const authOptions = {
           : `next-auth.csrf-token`,
       options: {
         httpOnly: true,
-        sameSite: "lax" as const,
+        sameSite: "lax",
         path: "/",
         secure: process.env.NODE_ENV === "production",
       },
@@ -99,15 +154,30 @@ const authOptions = {
           : `next-auth.pkce.code_verifier`,
       options: {
         httpOnly: true,
-        sameSite: "lax" as const,
+        sameSite: "lax",
         path: "/",
         secure: process.env.NODE_ENV === "production",
         maxAge: 60 * 10, // 10 minutes in seconds
       },
     },
   },
-  debug: process.env.NODE_ENV === "development",
+  debug:
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXTAUTH_DEBUG === "true",
   secret: process.env.NEXTAUTH_SECRET,
+  logger: {
+    error(error: Error) {
+      console.error("NextAuth Error:", error.name, error.message);
+    },
+    warn(warning: string) {
+      console.warn("NextAuth Warning:", warning);
+    },
+    debug(message: string, metadata?: Record<string, unknown>) {
+      console.log("NextAuth Debug:", message, metadata || "");
+    },
+  },
+  // Explicitly set URL if we have one to override any default
+  ...(baseUrl ? { url: baseUrl } : {}),
 };
 
 export const {
