@@ -1,0 +1,5 @@
+# Generated using Prisma CLI
+# See https://pris.ly/d/migration-metadata
+
+migration_id = "20240605000000_init"
+checksum = "a9fa28f0aadf4151dccb7c6ed4b78fe69f38c10ecb1e06e5ec9cddca86ee6c16" 
