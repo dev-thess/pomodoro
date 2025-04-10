@@ -141,12 +141,15 @@ if (isProduction) {
   // Check for DIRECT_DATABASE_URL (needed for migrations)
   if (!process.env.DIRECT_DATABASE_URL && isProduction) {
     console.log(
-      `${colors.yellow}WARNING: DIRECT_DATABASE_URL is not set.${colors.reset}`
+      `${colors.yellow}INFO: DIRECT_DATABASE_URL is not set.${colors.reset}`
     );
     console.log(
-      `${colors.yellow}This is needed for database migrations and schema changes.${colors.reset}`
+      `${colors.yellow}This is only needed for database migrations and schema changes.${colors.reset}`
     );
-    warnings++;
+    console.log(
+      `${colors.yellow}If you're not running migrations in this build, you can ignore this message.${colors.reset}`
+    );
+    // Don't increment warnings since this isn't critical for app function
   }
 
   console.log("\n");

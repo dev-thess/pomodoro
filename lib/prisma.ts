@@ -36,11 +36,10 @@ if (process.env.NODE_ENV !== "production") {
     .then(() => {
       console.log("✅ Successfully connected to Supabase PostgreSQL database");
 
-      // Verify that both database URLs are configured properly
+      // Verify that database URL is using the connection pooler
       const hasPooler = process.env.DATABASE_URL?.includes(
         "pooler.supabase.com"
       );
-      const hasDirectUrl = !!process.env.DIRECT_DATABASE_URL;
 
       if (!hasPooler) {
         console.warn(
@@ -48,9 +47,10 @@ if (process.env.NODE_ENV !== "production") {
         );
       }
 
-      if (!hasDirectUrl) {
-        console.warn(
-          "⚠️ DIRECT_DATABASE_URL is not set. This may cause issues with migrations and introspection."
+      // Only warn about DIRECT_DATABASE_URL if we're using schema migrations
+      if (!process.env.DIRECT_DATABASE_URL) {
+        console.info(
+          "ℹ️ DIRECT_DATABASE_URL is not set. This is only needed for migrations and introspection."
         );
       }
     })

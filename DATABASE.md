@@ -6,8 +6,8 @@ This application uses Prisma ORM with a PostgreSQL database on Supabase. This do
 
 We use two different connection methods:
 
-1. **Connection Pooler (DATABASE_URL)** - Used for API routes and serverless functions
-2. **Direct Connection (DIRECT_DATABASE_URL)** - Used for migrations and schema changes
+1. **Connection Pooler (DATABASE_URL)** - Used for API routes and serverless functions (Required)
+2. **Direct Connection (DIRECT_DATABASE_URL)** - Used for migrations and schema changes (Optional)
 
 ## Environment Setup
 
@@ -16,10 +16,10 @@ We use two different connection methods:
 For local development, copy `.env.example` to `.env.local` and fill in your database credentials:
 
 ```env
-# Connection pooler (for normal operations)
+# Connection pooler (for normal operations) - REQUIRED
 DATABASE_URL="postgresql://postgres.[YOUR-PROJECT-REF]:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require"
 
-# Direct connection (for migrations)
+# Direct connection (for migrations) - OPTIONAL
 DIRECT_DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres?sslmode=require"
 ```
 
@@ -27,12 +27,23 @@ DIRECT_DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF]
 
 In your Vercel project settings, add the following environment variables:
 
-1. `DATABASE_URL` - Using the Supabase connection pooler URL
-2. `DIRECT_DATABASE_URL` - Using the direct database connection URL
+1. `DATABASE_URL` - Using the Supabase connection pooler URL (Required)
+2. `DIRECT_DATABASE_URL` - Using the direct database connection URL (Optional, but required for migrations)
 
 ## Connection Pooling
 
 Vercel's serverless functions benefit from connection pooling to prevent database connection limits. The Supabase Pooler helps manage connection limits efficiently.
+
+## Migrations in Production
+
+There are two ways to handle migrations in production:
+
+1. **With DIRECT_DATABASE_URL**: Set this variable in Vercel to run migrations during deployment
+2. **Without DIRECT_DATABASE_URL**: Run migrations manually before deploying:
+   ```bash
+   # Apply migrations locally first
+   npx prisma migrate deploy
+   ```
 
 ## Common Issues and Troubleshooting
 
@@ -57,7 +68,7 @@ If you see errors like `Database connection error: Timed out fetching a new conn
 
 If migrations fail:
 
-1. Make sure `DIRECT_DATABASE_URL` is correctly set
+1. Make sure `DIRECT_DATABASE_URL` is correctly set if you want to run migrations during deployment
 2. Run migrations locally first: `npx prisma migrate dev`
 3. Deploy to production
 
