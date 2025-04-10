@@ -1,26 +1,58 @@
 import { PrismaClient } from "@prisma/client";
 
-// PrismaClient is attached to the `global` object in development to prevent
-// exhausting your database connection limit.
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// Define global type to hold PrismaClient
+declare global {
+  var prisma: PrismaClient | undefined;
+}
 
-// Production-optimized Prisma client configuration
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    log: ["error"],
+// Connection pooling configuration - improved for Vercel serverless functions
+const prismaClientSingleton = () => {
+  return new PrismaClient({
+    log:
+      process.env.NODE_ENV === "development"
+        ? ["query", "error", "warn"]
+        : ["error"],
     errorFormat: "minimal",
+    // Connection pooling settings for Supabase PostgreSQL
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
   });
+};
 
-// Only cache the client instance in development
+// PrismaClient is attached to the `globalThis` object in development to prevent
+// exhausting your database connection limit from instantiating too many instances
+// See https://www.prisma.io/docs/guides/database/troubleshooting-orm/help-articles/nextjs-prisma-client-dev-practices
+export const prisma = globalThis.prisma ?? prismaClientSingleton();
+
 if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+  globalThis.prisma = prisma;
 } else {
   // In production, perform a quick test connection to verify database connectivity
   prisma
     .$connect()
     .then(() => {
       console.log("✅ Successfully connected to Supabase PostgreSQL database");
+
+      // Verify that both database URLs are configured properly
+      const hasPooler = process.env.DATABASE_URL?.includes(
+        "pooler.supabase.com"
+      );
+      const hasDirectUrl = !!process.env.DIRECT_DATABASE_URL;
+
+      if (!hasPooler) {
+        console.warn(
+          "⚠️ DATABASE_URL is not using the Supabase connection pooler. This could lead to connection issues in serverless environments."
+        );
+      }
+
+      if (!hasDirectUrl) {
+        console.warn(
+          "⚠️ DIRECT_DATABASE_URL is not set. This may cause issues with migrations and introspection."
+        );
+      }
     })
     .catch((err) => {
       console.error("❌ Database connection error:", err.message);
@@ -36,3 +68,5 @@ if (process.env.NODE_ENV !== "production") {
       }
     });
 }
+
+export default prisma;

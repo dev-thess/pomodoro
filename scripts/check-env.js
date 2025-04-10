@@ -27,6 +27,7 @@ const CRITICAL_VARS = [
   "NEXTAUTH_SECRET",
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
+  "DATABASE_URL",
 ];
 
 // Check if we're in a production environment
@@ -106,6 +107,46 @@ if (isProduction) {
       );
       hasCriticalErrors = true;
     }
+  }
+
+  // Check DATABASE_URL for connection pooling
+  if (process.env.DATABASE_URL) {
+    if (
+      !process.env.DATABASE_URL.includes("pooler.supabase.com") &&
+      isProduction
+    ) {
+      console.log(
+        `${colors.yellow}WARNING: DATABASE_URL is not using the Supabase connection pooler.${colors.reset}`
+      );
+      console.log(
+        `${colors.yellow}This may cause connection timeout issues in serverless environments.${colors.reset}`
+      );
+      console.log(
+        `${colors.yellow}Recommended format: postgresql://postgres.[PROJECT-ID]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres${colors.reset}`
+      );
+      warnings++;
+    }
+
+    if (!process.env.DATABASE_URL.includes("sslmode=require") && isProduction) {
+      console.log(
+        `${colors.yellow}WARNING: DATABASE_URL does not specify sslmode=require${colors.reset}`
+      );
+      console.log(
+        `${colors.yellow}SSL connection is recommended for security in production.${colors.reset}`
+      );
+      warnings++;
+    }
+  }
+
+  // Check for DIRECT_DATABASE_URL (needed for migrations)
+  if (!process.env.DIRECT_DATABASE_URL && isProduction) {
+    console.log(
+      `${colors.yellow}WARNING: DIRECT_DATABASE_URL is not set.${colors.reset}`
+    );
+    console.log(
+      `${colors.yellow}This is needed for database migrations and schema changes.${colors.reset}`
+    );
+    warnings++;
   }
 
   console.log("\n");
