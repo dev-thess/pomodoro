@@ -5,13 +5,10 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-// Connection pooling configuration - improved for Vercel serverless functions
+// Connection pooling configuration - optimized for Vercel serverless functions
 const prismaClientSingleton = () => {
   return new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
     errorFormat: "minimal",
     // Connection pooling settings for Supabase PostgreSQL
     datasources: {
@@ -27,44 +24,37 @@ const prismaClientSingleton = () => {
 // See https://www.prisma.io/docs/guides/database/troubleshooting-orm/help-articles/nextjs-prisma-client-dev-practices
 export const prisma = globalThis.prisma ?? prismaClientSingleton();
 
+// Only cache client in development
 if (process.env.NODE_ENV !== "production") {
   globalThis.prisma = prisma;
 } else {
-  // In production, perform a quick test connection to verify database connectivity
+  // In production, perform a quick test connection but don't store the client globally
   prisma
     .$connect()
     .then(() => {
-      console.log("✅ Successfully connected to Supabase PostgreSQL database");
+      console.log("✅ Connected to Supabase PostgreSQL via pooler");
 
-      // Verify that database URL is using the connection pooler
+      // Verify correct connection URL
       const hasPooler = process.env.DATABASE_URL?.includes(
         "pooler.supabase.com"
       );
 
       if (!hasPooler) {
         console.warn(
-          "⚠️ DATABASE_URL is not using the Supabase connection pooler. This could lead to connection issues in serverless environments."
-        );
-      }
-
-      // Only warn about DIRECT_DATABASE_URL if we're using schema migrations
-      if (!process.env.DIRECT_DATABASE_URL) {
-        console.info(
-          "ℹ️ DIRECT_DATABASE_URL is not set. This is only needed for migrations and introspection."
+          "⚠️ Warning: DATABASE_URL should use Supabase pooler for best performance"
         );
       }
     })
     .catch((err) => {
       console.error("❌ Database connection error:", err.message);
-      // Log more details about the connection string (without exposing credentials)
+
+      // Log connection details without credentials
       if (process.env.DATABASE_URL) {
         const redactedUrl = process.env.DATABASE_URL.replace(
           /postgresql:\/\/([^:]+):([^@]+)@/,
           "postgresql://$1:***@"
         );
-        console.error(`Database URL format: ${redactedUrl}`);
-      } else {
-        console.error("DATABASE_URL environment variable is missing");
+        console.error(`DB URL format: ${redactedUrl}`);
       }
     });
 }
