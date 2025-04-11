@@ -11,6 +11,7 @@ interface TimerState {
   isRunning: boolean;
   completedPomodoros: number;
   startTime: number | null;
+  pausedTimeLeft: number | null; // Track time left when paused
   lastSession: {
     date: string;
     count: number;
@@ -44,6 +45,7 @@ export const useTimerStore = create<TimerState>()(
       isRunning: false,
       completedPomodoros: 0,
       startTime: null,
+      pausedTimeLeft: null,
       lastSession: {
         date: getTodayDate(),
         count: 0,
@@ -54,21 +56,43 @@ export const useTimerStore = create<TimerState>()(
           mode,
           timeLeft: TIMER_DURATION[mode],
           isRunning: false,
+          startTime: null,
+          pausedTimeLeft: null,
         })),
 
       setTimeLeft: (time) => set({ timeLeft: time }),
 
       setStartTime: (time) => set({ startTime: time }),
 
-      startTimer: () => set({ isRunning: true, startTime: Date.now() }),
+      startTimer: () =>
+        set((state) => {
+          // If there's a pausedTimeLeft value, use that instead of resetting to full duration
+          const timeRemaining =
+            state.pausedTimeLeft !== null
+              ? state.pausedTimeLeft
+              : state.timeLeft;
 
-      pauseTimer: () => set({ isRunning: false, startTime: null }),
+          return {
+            isRunning: true,
+            startTime: Date.now(),
+            timeLeft: timeRemaining,
+            pausedTimeLeft: null, // Clear paused time
+          };
+        }),
+
+      pauseTimer: () =>
+        set((state) => ({
+          isRunning: false,
+          startTime: null,
+          pausedTimeLeft: state.timeLeft, // Save current time when pausing
+        })),
 
       resetTimer: () =>
         set((state) => ({
           timeLeft: TIMER_DURATION[state.mode],
           isRunning: false,
           startTime: null,
+          pausedTimeLeft: null,
         })),
 
       incrementCompletedPomodoros: () =>
@@ -88,11 +112,14 @@ export const useTimerStore = create<TimerState>()(
     }),
     {
       name: "pomodoro-timer-storage",
-      // Only persist these fields
+      // Persist all timer state data to restore properly
       partialize: (state) => ({
         completedPomodoros: state.completedPomodoros,
         lastSession: state.lastSession,
         mode: state.mode,
+        timeLeft: state.timeLeft,
+        pausedTimeLeft: state.pausedTimeLeft,
+        isRunning: state.isRunning,
       }),
     }
   )
