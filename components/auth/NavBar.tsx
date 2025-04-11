@@ -2,10 +2,10 @@
 
 import { signOut } from "next-auth/react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { GuestBanner } from "./GuestBanner";
 import { useSessionUser } from "@/hooks/useSessionUser";
+import { Avatar } from "@/components/ui/Avatar";
 
 export default function NavBar() {
   const router = useRouter();
@@ -45,16 +45,7 @@ export default function NavBar() {
               {isAuthenticated ? (
                 <div className='flex items-center space-x-4'>
                   <div className='flex items-center space-x-2'>
-                    {userImage && (
-                      <div className='w-8 h-8 rounded-full overflow-hidden'>
-                        <Image
-                          src={userImage}
-                          alt={userName || "User"}
-                          width={32}
-                          height={32}
-                        />
-                      </div>
-                    )}
+                    <Avatar src={userImage} name={userName} size={32} />
                     <span className='text-sm font-medium text-gray-700 hidden sm:inline'>
                       {userName}
                     </span>
