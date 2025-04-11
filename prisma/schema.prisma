@@ -19,16 +19,17 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  image     String?
-  points    Int      @default(0)
-  streaks   Streak[]
-  notes     Note[]
-  accounts  Account[]
-  sessions  Session[]
-  createdAt DateTime @default(now())
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  points        Int       @default(0)
+  streaks       Streak[]
+  notes         Note[]
+  accounts      Account[]
+  sessions      Session[]
+  createdAt     DateTime  @default(now())
 }
 
 model Streak {
