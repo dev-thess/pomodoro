@@ -3,8 +3,8 @@
 ## 🛠️ Pre-Deployment Checks
 
 1. [ ] Verify the `.env.production.example` has been updated with correct format
-2. [ ] Ensure `schema.prisma` has the optional marker (`?`) on `directUrl`
-3. [ ] Confirm `package.json` build script is `prisma generate && next build`
+2. [ ] Ensure `schema.prisma` has the correct datasource configuration
+3. [ ] Confirm `package.json` build script includes the environment fallback script
 
 ## 🔐 Vercel Environment Variables
 
@@ -31,6 +31,10 @@ Set the following in your Vercel project settings under "Environment Variables":
 - [ ] `GOOGLE_CLIENT_ID`: From Google Cloud Console
 
 - [ ] `GOOGLE_CLIENT_SECRET`: From Google Cloud Console
+
+### Optional Variables
+
+- `DIRECT_DATABASE_URL` is now handled automatically during builds, but you can set it manually if you run migrations separately
 
 ## 🔄 Google OAuth Setup
 
@@ -68,7 +72,7 @@ If you encounter issues:
 2. **Database Connection Issues**:
 
    - Verify the DATABASE_URL is using the pooler connection
-   - Check Supabase dashboard to make sure your database is active
+   - Make sure it includes `?sslmode=require` at the end
 
 3. **General Deployment Issues**:
    - Review Vercel build logs for specific errors

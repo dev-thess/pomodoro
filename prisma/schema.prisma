@@ -15,7 +15,7 @@ datasource db {
   // Connection pooling configuration
   // Higher connection limit for Supabase Pooler
   // Optional direct URL for migrations and introspection
-  directUrl = env("DIRECT_DATABASE_URL")?
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model User {
