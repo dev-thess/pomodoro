@@ -9,6 +9,15 @@ import {
   getTimerDuration,
 } from "../store/useTimerStore";
 
+// Timer state keys in localStorage
+const STORAGE_KEYS = {
+  END_TIME: "pomodoroEndTime",
+  MODE: "pomodoroMode",
+  IS_RUNNING: "pomodoroIsRunning",
+  START_TIME: "pomodoroStartTime",
+  TIME_LEFT: "pomodoroTimeLeft",
+};
+
 export function usePomodoroTimer() {
   const {
     mode,
@@ -22,6 +31,7 @@ export function usePomodoroTimer() {
     resetTimer,
     setMode,
     incrementCompletedPomodoros,
+    setStartTime,
   } = useTimerStore();
 
   // Use both setInterval and requestAnimationFrame for better cross-browser support
@@ -32,6 +42,33 @@ export function usePomodoroTimer() {
   // Track visibility state for when app goes to background
   const [isVisible, setIsVisible] = useState(true);
   const lastVisibleTimeRef = useRef<number>(Date.now());
+
+  // Flag to track if we've initialized from localStorage
+  const hasInitializedRef = useRef(false);
+
+  // Save the current timer state to localStorage
+  const persistTimerState = useCallback(() => {
+    if (isRunning && startTime) {
+      const expectedEndTimestamp = Date.now() + timeLeft * 1000;
+      localStorage.setItem(
+        STORAGE_KEYS.END_TIME,
+        expectedEndTimestamp.toString()
+      );
+      localStorage.setItem(STORAGE_KEYS.MODE, mode);
+      localStorage.setItem(STORAGE_KEYS.IS_RUNNING, "true");
+      localStorage.setItem(STORAGE_KEYS.START_TIME, startTime.toString());
+      localStorage.setItem(STORAGE_KEYS.TIME_LEFT, timeLeft.toString());
+    } else if (!isRunning) {
+      // When paused, store the time left but clear running state
+      localStorage.setItem(STORAGE_KEYS.MODE, mode);
+      localStorage.setItem(STORAGE_KEYS.IS_RUNNING, "false");
+      localStorage.setItem(STORAGE_KEYS.TIME_LEFT, timeLeft.toString());
+
+      // Clear dynamic timing values
+      localStorage.removeItem(STORAGE_KEYS.END_TIME);
+      localStorage.removeItem(STORAGE_KEYS.START_TIME);
+    }
+  }, [isRunning, mode, startTime, timeLeft]);
 
   // Handle visibility change events
   useEffect(() => {
@@ -57,6 +94,9 @@ export function usePomodoroTimer() {
             )}s, adjusting timer`
           );
           setTimeLeft(newTimeLeft);
+
+          // Also update the persisted state
+          persistTimerState();
         }
       }
 
@@ -74,16 +114,14 @@ export function usePomodoroTimer() {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isRunning, setTimeLeft, timeLeft]);
+  }, [isRunning, setTimeLeft, timeLeft, persistTimerState]);
 
   // Absolute time-based timer implementation
   useEffect(() => {
     if (!isRunning || !startTime) return;
 
-    // Store the expected end time in localStorage for recovery
-    const expectedEndTimestamp = startTime + timeLeft * 1000;
-    localStorage.setItem("pomodoroEndTime", expectedEndTimestamp.toString());
-    localStorage.setItem("pomodoroMode", mode);
+    // Persist the current timer state
+    persistTimerState();
 
     const calculateTimeRemaining = () => {
       const now = Date.now();
@@ -130,7 +168,15 @@ export function usePomodoroTimer() {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [isRunning, startTime, mode, timeLeft, setTimeLeft, isVisible]);
+  }, [
+    isRunning,
+    startTime,
+    mode,
+    timeLeft,
+    setTimeLeft,
+    isVisible,
+    persistTimerState,
+  ]);
 
   // Handle timer completion and mode switching
   useEffect(() => {
@@ -160,8 +206,10 @@ export function usePomodoroTimer() {
         setMode("pomodoro");
       }
 
-      // Clear the stored end time
-      localStorage.removeItem("pomodoroEndTime");
+      // Clear the running state in localStorage
+      localStorage.removeItem(STORAGE_KEYS.END_TIME);
+      localStorage.removeItem(STORAGE_KEYS.START_TIME);
+      localStorage.setItem(STORAGE_KEYS.IS_RUNNING, "false");
     }
   }, [
     timeLeft,
@@ -173,12 +221,32 @@ export function usePomodoroTimer() {
     setMode,
   ]);
 
-  // Check for timer recovery on mount
+  // Initialize timer state from localStorage on component mount
   useEffect(() => {
-    const storedEndTime = localStorage.getItem("pomodoroEndTime");
-    const storedMode = localStorage.getItem("pomodoroMode") as TimerMode | null;
+    // Only run this once
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
 
-    if (storedEndTime && storedMode) {
+    // Try to restore from end time first (most accurate for running timers)
+    const storedEndTime = localStorage.getItem(STORAGE_KEYS.END_TIME);
+    const storedMode = localStorage.getItem(
+      STORAGE_KEYS.MODE
+    ) as TimerMode | null;
+    const storedIsRunning =
+      localStorage.getItem(STORAGE_KEYS.IS_RUNNING) === "true";
+    const storedStartTime = localStorage.getItem(STORAGE_KEYS.START_TIME);
+    const storedTimeLeft = localStorage.getItem(STORAGE_KEYS.TIME_LEFT);
+
+    // Set the mode first if available
+    if (
+      storedMode &&
+      ["pomodoro", "shortBreak", "longBreak"].includes(storedMode)
+    ) {
+      setMode(storedMode as TimerMode);
+    }
+
+    // Restore a running timer
+    if (storedIsRunning && storedEndTime) {
       const endTime = parseInt(storedEndTime, 10);
       const now = Date.now();
 
@@ -189,22 +257,35 @@ export function usePomodoroTimer() {
 
         // Only recover if more than 1 second remains
         if (remainingSeconds > 1) {
-          console.log(`Recovering timer with ${remainingSeconds}s remaining`);
-          setMode(storedMode);
+          console.log(
+            `Recovering running timer with ${remainingSeconds}s remaining`
+          );
+
+          // Calculate and set the new start time based on the end time and duration
+          const calculatedStartTime =
+            now -
+            (getTimerDuration(storedMode as TimerMode) - remainingSeconds) *
+              1000;
           setTimeLeft(remainingSeconds);
+          setStartTime(calculatedStartTime);
           startTimer();
-        } else {
-          // Clear storage if time has passed
-          localStorage.removeItem("pomodoroEndTime");
-          localStorage.removeItem("pomodoroMode");
+          return; // Exit early, we've restored the timer
         }
-      } else {
-        // Clear storage if time has passed
-        localStorage.removeItem("pomodoroEndTime");
-        localStorage.removeItem("pomodoroMode");
       }
     }
-  }, [setMode, setTimeLeft, startTimer]);
+
+    // If we didn't restore a running timer but have paused state
+    if (!storedIsRunning && storedTimeLeft && !isNaN(Number(storedTimeLeft))) {
+      const savedTimeLeft = parseInt(storedTimeLeft, 10);
+      if (
+        savedTimeLeft > 0 &&
+        savedTimeLeft <= getTimerDuration(storedMode as TimerMode)
+      ) {
+        console.log(`Recovering paused timer with ${savedTimeLeft}s remaining`);
+        setTimeLeft(savedTimeLeft);
+      }
+    }
+  }, [setMode, setTimeLeft, startTimer, setStartTime]);
 
   // Helper function to format time as mm:ss
   const formatTime = (seconds: number): string => {
@@ -217,26 +298,44 @@ export function usePomodoroTimer() {
 
   const handleModeChange = (newMode: TimerMode) => {
     setMode(newMode);
-    // Clear any stored timer
-    localStorage.removeItem("pomodoroEndTime");
-    localStorage.removeItem("pomodoroMode");
+    // Update localStorage with new mode
+    localStorage.setItem(STORAGE_KEYS.MODE, newMode);
+    localStorage.setItem(
+      STORAGE_KEYS.TIME_LEFT,
+      getTimerDuration(newMode).toString()
+    );
+
+    // Clear running state
+    localStorage.removeItem(STORAGE_KEYS.END_TIME);
+    localStorage.removeItem(STORAGE_KEYS.START_TIME);
+    localStorage.setItem(STORAGE_KEYS.IS_RUNNING, "false");
   };
 
   const handleStartPause = () => {
     if (isRunning) {
       pauseTimer();
-      // Remove stored end time when pausing
-      localStorage.removeItem("pomodoroEndTime");
+      // Update localStorage when pausing
+      localStorage.setItem(STORAGE_KEYS.IS_RUNNING, "false");
+      localStorage.setItem(STORAGE_KEYS.TIME_LEFT, timeLeft.toString());
+      localStorage.removeItem(STORAGE_KEYS.END_TIME);
+      localStorage.removeItem(STORAGE_KEYS.START_TIME);
     } else {
       startTimer();
+      // Persist updated state on start
+      persistTimerState();
     }
   };
 
   const handleReset = () => {
     resetTimer();
-    // Clear any stored timer
-    localStorage.removeItem("pomodoroEndTime");
-    localStorage.removeItem("pomodoroMode");
+    // Clear timer state in localStorage
+    localStorage.removeItem(STORAGE_KEYS.END_TIME);
+    localStorage.removeItem(STORAGE_KEYS.START_TIME);
+    localStorage.setItem(STORAGE_KEYS.IS_RUNNING, "false");
+    localStorage.setItem(
+      STORAGE_KEYS.TIME_LEFT,
+      getTimerDuration(mode).toString()
+    );
   };
 
   // Get estimated timer accuracy (for debugging)
