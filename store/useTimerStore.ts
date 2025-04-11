@@ -25,6 +25,7 @@ interface TimerState {
   resetTimer: () => void;
   incrementCompletedPomodoros: () => void;
   setStartTime: (time: number | null) => void;
+  setPausedTimeLeft: (time: number | null) => void;
 }
 
 const TIMER_DURATION = {
@@ -39,7 +40,7 @@ const getTodayDate = () => new Date().toISOString().split("T")[0];
 // Create the persisted store
 export const useTimerStore = create<TimerState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       mode: "pomodoro",
       timeLeft: TIMER_DURATION.pomodoro,
       isRunning: false,
@@ -64,27 +65,29 @@ export const useTimerStore = create<TimerState>()(
 
       setStartTime: (time) => set({ startTime: time }),
 
-      startTimer: () =>
-        set((state) => {
-          // If there's a pausedTimeLeft value, use that instead of resetting to full duration
-          const timeRemaining =
-            state.pausedTimeLeft !== null
-              ? state.pausedTimeLeft
-              : state.timeLeft;
+      setPausedTimeLeft: (time) => set({ pausedTimeLeft: time }),
 
-          return {
-            isRunning: true,
-            startTime: Date.now(),
-            timeLeft: timeRemaining,
-            pausedTimeLeft: null, // Clear paused time
-          };
-        }),
+      startTimer: () => {
+        const state = get();
+        // Determine which time value to use
+        const currentTimeLeft =
+          state.pausedTimeLeft !== null
+            ? state.pausedTimeLeft // Use paused time if available
+            : state.timeLeft; // Otherwise use current timeLeft
+
+        set({
+          isRunning: true,
+          startTime: Date.now(),
+          timeLeft: currentTimeLeft,
+          pausedTimeLeft: null, // Clear paused time when starting
+        });
+      },
 
       pauseTimer: () =>
         set((state) => ({
           isRunning: false,
+          pausedTimeLeft: state.timeLeft, // Store the current time left
           startTime: null,
-          pausedTimeLeft: state.timeLeft, // Save current time when pausing
         })),
 
       resetTimer: () =>

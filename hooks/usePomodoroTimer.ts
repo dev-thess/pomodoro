@@ -34,6 +34,7 @@ export function usePomodoroTimer() {
     setMode,
     incrementCompletedPomodoros,
     setStartTime,
+    setPausedTimeLeft,
   } = useTimerStore();
 
   // Use both setInterval and requestAnimationFrame for better cross-browser support
@@ -47,9 +48,6 @@ export function usePomodoroTimer() {
 
   // Flag to track if we've initialized from localStorage
   const hasInitializedRef = useRef(false);
-
-  // Flag to prevent timer resets on quick component remounts
-  const isRestoredRef = useRef(false);
 
   // Save the current timer state to localStorage
   const persistTimerState = useCallback(() => {
@@ -126,7 +124,7 @@ export function usePomodoroTimer() {
   // Record timer state in localStorage any time timer state changes
   useEffect(() => {
     // Only persist after initial load/restore is complete
-    if (isRestoredRef.current) {
+    if (hasInitializedRef.current) {
       persistTimerState();
     }
   }, [isRunning, timeLeft, mode, startTime, persistTimerState]);
@@ -140,13 +138,12 @@ export function usePomodoroTimer() {
       const elapsedMs = now - startTime;
       const elapsedSeconds = Math.floor(elapsedMs / 1000);
 
-      // Calculate remaining time based on elapsed time since timer start
-      let originalDuration = getTimerDuration(mode);
-
-      // If we're resuming a paused timer, use the remaining time from when we paused
-      if (pausedTimeLeft !== null) {
-        originalDuration = timeLeft;
-      }
+      // If there was a pausedTimeLeft when we started, we use that as the starting point
+      // Otherwise use the full duration
+      const originalDuration =
+        pausedTimeLeft === null
+          ? getTimerDuration(mode)
+          : timeLeft + elapsedSeconds; // Reconstruct the original duration
 
       const newTimeLeft = Math.max(0, originalDuration - elapsedSeconds);
 
@@ -245,7 +242,12 @@ export function usePomodoroTimer() {
 
   // Initialize timer state from localStorage on component mount
   useEffect(() => {
-    // Only run this once
+    console.log(
+      "Initializing timer, hasInitialized:",
+      hasInitializedRef.current
+    );
+
+    // Only run this once at the beginning
     if (hasInitializedRef.current) return;
     hasInitializedRef.current = true;
 
@@ -260,11 +262,12 @@ export function usePomodoroTimer() {
     const storedTimeLeft = localStorage.getItem(STORAGE_KEYS.TIME_LEFT);
     const storedPausedAt = localStorage.getItem(STORAGE_KEYS.PAUSED_AT);
 
-    console.log("Initializing timer state from storage:", {
+    console.log("Restoring timer from localStorage:", {
       storedMode,
       storedIsRunning,
       storedTimeLeft,
       storedPausedAt,
+      storedEndTime,
     });
 
     // Set the mode first if available
@@ -291,22 +294,32 @@ export function usePomodoroTimer() {
             `Recovering running timer with ${remainingSeconds}s remaining`
           );
 
-          // Calculate and set the new start time based on the end time and duration
-          const calculatedStartTime =
-            now -
-            (getTimerDuration(storedMode as TimerMode) - remainingSeconds) *
-              1000;
+          // Calculate how long the timer has been running
+          const originalDuration = getTimerDuration(storedMode as TimerMode);
+          const elapsedSeconds = originalDuration - remainingSeconds;
+
+          // Calculate the start time based on the elapsed seconds
+          const calculatedStartTime = now - elapsedSeconds * 1000;
+
+          // Set the state directly in the correct order
           setTimeLeft(remainingSeconds);
+
+          // When we restart, we want the timer to know it was previously paused at this time
+          setPausedTimeLeft(remainingSeconds);
+
+          // Set the appropriate start time
           setStartTime(calculatedStartTime);
+
+          // Start the timer
           startTimer();
-          isRestoredRef.current = true;
+
           return; // Exit early, we've restored the timer
         }
       }
     }
 
     // If we didn't restore a running timer but have paused state
-    if (!storedIsRunning && storedPausedAt && !isNaN(Number(storedPausedAt))) {
+    if (storedPausedAt && !isNaN(Number(storedPausedAt))) {
       const pausedTime = parseInt(storedPausedAt, 10);
       if (
         pausedTime > 0 &&
@@ -314,29 +327,26 @@ export function usePomodoroTimer() {
       ) {
         console.log(`Recovering paused timer with ${pausedTime}s remaining`);
         setTimeLeft(pausedTime);
-        // Mark as paused at this time
-        pauseTimer();
-        isRestoredRef.current = true;
+        setPausedTimeLeft(pausedTime);
         return;
       }
     }
 
-    // If we didn't have specific pause data but have general time left
-    if (!storedIsRunning && storedTimeLeft && !isNaN(Number(storedTimeLeft))) {
+    // If we have stored time but no paused time
+    if (storedTimeLeft && !isNaN(Number(storedTimeLeft))) {
       const savedTimeLeft = parseInt(storedTimeLeft, 10);
       if (
         savedTimeLeft > 0 &&
         savedTimeLeft <= getTimerDuration(storedMode as TimerMode)
       ) {
-        console.log(`Recovering timer state with ${savedTimeLeft}s remaining`);
+        console.log(`Recovering timer with ${savedTimeLeft}s remaining`);
         setTimeLeft(savedTimeLeft);
-        isRestoredRef.current = true;
+
+        // Make sure we restore this as a paused time too
+        setPausedTimeLeft(savedTimeLeft);
       }
     }
-
-    // Mark restoration as complete so we can start persisting changes
-    isRestoredRef.current = true;
-  }, [setMode, setTimeLeft, startTimer, setStartTime, pauseTimer]);
+  }, [setMode, setTimeLeft, startTimer, setStartTime, setPausedTimeLeft]);
 
   // Helper function to format time as mm:ss
   const formatTime = (seconds: number): string => {
@@ -373,6 +383,7 @@ export function usePomodoroTimer() {
       localStorage.removeItem(STORAGE_KEYS.END_TIME);
       localStorage.removeItem(STORAGE_KEYS.START_TIME);
     } else {
+      // Start from the current time left
       startTimer();
     }
   };
